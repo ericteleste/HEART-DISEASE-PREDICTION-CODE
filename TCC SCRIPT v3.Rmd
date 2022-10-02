@@ -8,35 +8,27 @@ output:
 ---
 
 # 2.1 Base de Dados
-
 ## Leitura da base de dados e separando base de treino e teste
 
 ```{r setup, include=FALSE}
 
 bd_heart_disease <- read.csv('heart_2020_cleaned.csv')
 
-
 bd_heart_disease <- as.data.frame(unclass(bd_heart_disease),
                                     stringsAsFactors = TRUE)
 
-
-
 bd_heart_disease_train <- bd_heart_disease[1:(nrow(bd_heart_disease)*0.8),]
-
 bd_heart_disease_test <- bd_heart_disease[(nrow(bd_heart_disease)*0.8+1):nrow(bd_heart_disease),]
 
 bd_avaliacao <- bd_heart_disease[1:(nrow(bd_heart_disease)*0.1),]
 summary(bd_heart_disease)
 ```
-
 ##Balanceamento da Variável resposta utilizando o pacote Rose
 
 ```{r}
 library("ROSE")
 
 set.seed(2222)
-
-
 
 bd_heart_disease_ajusted_90perc <- ovun.sample(HeartDisease ~.,
                                         data = bd_heart_disease_train,
@@ -69,14 +61,12 @@ library("ROSE")
 summary(bd_heart_disease_ajusted_90perc)
 rf_90perc = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_90perc, ntree = 100, mtry = 9, nodesize = 1, importance = TRUE , replace = FALSE)
 
-
 previsao_rf_90perc = as.data.frame(predict(rf_90perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
 names(previsao_rf_90perc)[1] <- 'pred'
+
 previsao_rf_90perc$obs <- bd_heart_disease_test$HeartDisease
 
-
 avalicao_AUC_90 <- caret::twoClassSummary(previsao_rf_90perc, lev=levels(previsao_rf_90perc$pred))
-
 
 avalicao_AUC_90
 ```
@@ -88,7 +78,6 @@ avalicao_AUC_90
 library("ROSE")
 summary(bd_heart_disease_ajusted_75perc)
 rf_75perc = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_75perc, ntree = 100, mtry = 9, nodesize = 1, importance = TRUE , replace = FALSE)
-
 
 previsao_rf_75perc = as.data.frame(predict(rf_75perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
 names(previsao_rf_75perc)[1] <- 'pred'
@@ -107,11 +96,9 @@ library("ROSE")
 
 rf_50perc = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_50perc, ntree = 100, mtry = 9, nodesize = 1, importance = TRUE , replace = FALSE)
 
-
 previsao_rf_50perc = as.data.frame(predict(rf_50perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
 names(previsao_rf_50perc)[1] <- 'pred'
 previsao_rf_50perc$obs <- bd_heart_disease_test$HeartDisease
-
 
 avalicao_AUC <- caret::twoClassSummary(previsao_rf_50perc, lev=levels(previsao_rf_50perc$pred))
 
@@ -123,13 +110,11 @@ avalicao_AUC
 ```{r}
 rf_25perc = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_25perc, ntree = 100, mtry = 9, nodesize = 1, importance = TRUE , replace = FALSE)
 
-
 previsao_rf_25perc = as.data.frame(predict(rf_25perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
 names(previsao_rf_25perc)[1] <- 'pred'
 previsao_rf_25perc$obs <- bd_heart_disease_test$HeartDisease
 
 table(previsao_rf_25perc)
-
 
 avalicao_AUC_25 <- caret::twoClassSummary(previsao_rf_25perc, lev=levels(previsao_rf_25perc$pred))
 
@@ -149,7 +134,6 @@ RF_ntree_define <- randomForest(HeartDisease ~ . ,data = bd_heart_disease_ajuste
 plot(RF_ntree_define)
 
 RF_ntree_define$err.rate
-##### quantidade de árvores = 50
 ```
 
 ```{r }
@@ -189,9 +173,6 @@ xdata <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,16,16,17)
 plot(xdata, test$OOB, type="o", col="black", pch='l', lty=1, ylim=c(0,0.3) )+
  lines(xdata, test$No, col="red",lty=2)+
   lines(xdata, test$Yes, col="blue",lty=2)
-
- 
-
 ```
 
 
@@ -210,7 +191,6 @@ oobsMINLEAF <- sapply(qtde_MINLEAF, function(qtde)  {
   return(RF$err.rate[RF$ntree,])
   
 })
-
 
 test_NodeSize <- as.data.frame(t(oobsMINLEAF))
 
@@ -257,7 +237,6 @@ final_RF_90perc
 previsao_rf_90perc = as.data.frame(predict(final_RF_90perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
 names(previsao_rf_90perc)[1] <- 'pred'
 previsao_rf_90perc$obs <- bd_heart_disease_test$HeartDisease
-
 
 avalicao_AUC_RF_90perc <- caret::twoClassSummary(previsao_rf_90perc, lev=levels(previsao_rf_90perc$pred))
 table(previsao_rf_90perc)
@@ -324,20 +303,15 @@ gbmFit3 <- train(HeartDisease ~ ., data = bd_heart_disease_ajusted_50perc,
                  tuneGrid = gbmGrid,
                  ## Specify which metric to optimize
                  metric = "ROC")
-
-
 gbmFit3
-
 
 ```
 ## Avaliação do Modelo gerado através da base com 50% de balanceamento
 
 ```{r}
-
 previsao_gbm_50perc = as.data.frame(predict(gbmFit3, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
 names(previsao_gbm_50perc)[1] <- 'pred'
 previsao_gbm_50perc$obs <- bd_heart_disease_test$HeartDisease
-
 
 avalicao_AUC_GB_50perc <- caret::twoClassSummary(previsao_gbm_50perc, lev=levels(previsao_gbm_50perc$pred))
 
@@ -431,11 +405,9 @@ gbm_original <- train(HeartDisease ~ ., data = bd_heart_disease_train,
 
 gbm_original
 
-
 previsao_gbm_original = as.data.frame(predict(gbm_original, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
 names(previsao_gbm_original)[1] <- 'pred'
 previsao_gbm_original$obs <- bd_heart_disease_test$HeartDisease
-
 
 avalicao_AUC_GB_original <- caret::twoClassSummary(previsao_gbm_original, lev=levels(previsao_gbm_original$pred))
 
@@ -444,8 +416,6 @@ avalicao_AUC_GB_original
 
 
 # 2.4 Redes Neurais: definição de hiperparâmetros e modelo final
-
-
 
 ## Tratamento para tornar todas as colunas numéricas e normalizadas
 
@@ -492,7 +462,7 @@ bd_50perc_rede_neural[,2:17] <- scale(bd_50perc_rede_neural[,2:17])
 summary(bd_50perc_rede_neural)  
 ```
 
-Aplicando tratamento para base de teste
+## Aplicando tratamento para base de teste
 
 ```{r}
 library(dplyr)
@@ -536,8 +506,6 @@ bd_heart_disease_test_rede_neural[,2:17] <- scale(bd_heart_disease_test_rede_neu
 summary(bd_heart_disease_test_rede_neural)
 
 ```
-
-
 
 ## Definição dos hiperparâmetros
 
@@ -628,20 +596,18 @@ model_hyper_batch_half <- model_hyper_batch_half %>% layer_dense(units = 16,
 
 ```
 
-Batch = 255836
+# Batch = 255836
 ```{r}
-
 history_full <- model_hyper_batch_full %>% fit(X_train, 
               Y_train,
               epochs = 200, 
               batch_size =255836,
               validation_data = list(X_test,Y_teste))
-
-
+              
 history_full
 ```
 
-Batch = 63959
+# Batch = 63959
 ```{r}
 
 history_quarter <- model_hyper_batch_quarter %>% fit(X_train, 
@@ -654,7 +620,7 @@ history_quarter <- model_hyper_batch_quarter %>% fit(X_train,
 history_quarter
 
 ```
-Batch = 127988
+# Batch = 127988
 ```{r}
 
 history_half <- model_hyper_batch_half %>% fit(X_train, 

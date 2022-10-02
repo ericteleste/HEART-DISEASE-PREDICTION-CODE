@@ -1,0 +1,1169 @@
+---
+title: "TCC MBA Data Analytics"
+author: "Eric Teleste de Assis"
+date: '2022-07-22'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# 2.1 Base de Dados
+
+## Leitura da base de dados e separando base de treino e teste
+
+```{r setup, include=FALSE}
+
+bd_heart_disease <- read.csv('heart_2020_cleaned.csv')
+
+
+bd_heart_disease <- as.data.frame(unclass(bd_heart_disease),
+                                    stringsAsFactors = TRUE)
+
+
+
+bd_heart_disease_train <- bd_heart_disease[1:(nrow(bd_heart_disease)*0.8),]
+
+bd_heart_disease_test <- bd_heart_disease[(nrow(bd_heart_disease)*0.8+1):nrow(bd_heart_disease),]
+
+bd_avaliacao <- bd_heart_disease[1:(nrow(bd_heart_disease)*0.1),]
+summary(bd_heart_disease)
+```
+
+##Balanceamento da Variável resposta utilizando o pacote Rose
+
+```{r}
+library("ROSE")
+
+set.seed(2222)
+
+
+
+bd_heart_disease_ajusted_90perc <- ovun.sample(HeartDisease ~.,
+                                        data = bd_heart_disease_train,
+                                        N = nrow(bd_heart_disease_train),
+                                        method='both',
+                                        p=0.90)$data
+
+bd_heart_disease_ajusted_75perc <- ovun.sample(HeartDisease ~.,
+                                        data = bd_heart_disease_train,
+                                        N = nrow(bd_heart_disease_train),
+                                        method='both',
+                                        p=0.75)$data
+
+bd_heart_disease_ajusted_50perc <- ovun.sample(HeartDisease ~.,
+                                        data = bd_heart_disease_train,
+                                        N = nrow(bd_heart_disease_train),
+                                        method='both',
+                                        p=0.5)$data
+
+bd_heart_disease_ajusted_25perc <- ovun.sample(HeartDisease ~.,
+                                        data = bd_heart_disease_train,
+                                        N = nrow(bd_heart_disease_train),
+                                        method='both',
+                                        p=0.25)$data
+```
+## Avaliação da Acuracidade Balanceada: Base 90% de Classe 'Sim'
+
+```{r}
+library("ROSE")
+summary(bd_heart_disease_ajusted_90perc)
+rf_90perc = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_90perc, ntree = 100, mtry = 9, nodesize = 1, importance = TRUE , replace = FALSE)
+
+
+previsao_rf_90perc = as.data.frame(predict(rf_90perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_rf_90perc)[1] <- 'pred'
+previsao_rf_90perc$obs <- bd_heart_disease_test$HeartDisease
+
+
+avalicao_AUC_90 <- caret::twoClassSummary(previsao_rf_90perc, lev=levels(previsao_rf_90perc$pred))
+
+
+avalicao_AUC_90
+```
+
+
+## Avaliação da Acuracidade Balanceada: Base 75% de Classe 'Sim'
+
+```{r}
+library("ROSE")
+summary(bd_heart_disease_ajusted_75perc)
+rf_75perc = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_75perc, ntree = 100, mtry = 9, nodesize = 1, importance = TRUE , replace = FALSE)
+
+
+previsao_rf_75perc = as.data.frame(predict(rf_75perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_rf_75perc)[1] <- 'pred'
+previsao_rf_75perc$obs <- bd_heart_disease_test$HeartDisease
+
+avalicao_AUC_75 <- caret::twoClassSummary(previsao_rf_75perc, lev=levels(previsao_rf_75perc$pred))
+
+avalicao_AUC_75
+
+```
+
+## Avaliação da Acuracidade Balanceada: Base 50% de Classe 'Sim'
+
+```{r}
+library("ROSE")
+
+rf_50perc = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_50perc, ntree = 100, mtry = 9, nodesize = 1, importance = TRUE , replace = FALSE)
+
+
+previsao_rf_50perc = as.data.frame(predict(rf_50perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_rf_50perc)[1] <- 'pred'
+previsao_rf_50perc$obs <- bd_heart_disease_test$HeartDisease
+
+
+avalicao_AUC <- caret::twoClassSummary(previsao_rf_50perc, lev=levels(previsao_rf_50perc$pred))
+
+avalicao_AUC
+```
+
+## Avaliação da Acuracidade Balanceada: Base 25% de Classe 'Sim'
+
+```{r}
+rf_25perc = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_25perc, ntree = 100, mtry = 9, nodesize = 1, importance = TRUE , replace = FALSE)
+
+
+previsao_rf_25perc = as.data.frame(predict(rf_25perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_rf_25perc)[1] <- 'pred'
+previsao_rf_25perc$obs <- bd_heart_disease_test$HeartDisease
+
+table(previsao_rf_25perc)
+
+
+avalicao_AUC_25 <- caret::twoClassSummary(previsao_rf_25perc, lev=levels(previsao_rf_25perc$pred))
+
+avalicao_AUC_25
+```
+**Escolha de Balanceamento: 50% de cada classe como oficial para definição dos hiperparâmetros e modelos finais testados com 50% e 90% da classe 'Yes'**
+
+# 2.2. Random Forest
+
+## Definição dos hiperparâmetros: Definição quantidade de árvores
+```{r }
+library('randomForest')
+set.seed(2222)
+
+RF_ntree_define <- randomForest(HeartDisease ~ . ,data = bd_heart_disease_ajusted_50perc , ntree = 500, do.trace = 50)
+
+plot(RF_ntree_define)
+
+RF_ntree_define$err.rate
+##### quantidade de árvores = 50
+```
+
+```{r }
+library('randomForest')
+set.seed(2222)
+
+plot_teste<-as.data.frame(RF_ntree_define$err.rate)
+
+ntree <- 1:500
+ntree_hiper <- 300
+
+plot(ntree, plot_teste$Yes, type="l", col="blue", lty=1, ylim=c(0,0.2) )+
+lines(ntree, plot_teste$No, col="red", pch="*")+
+  lines(ntree, plot_teste$OOB, col="black", pch="*")
+#lines(ntree, plot_teste$No, col="red",lty=2)
+
+
+```
+
+## Definição dos hiperparâmetros: Definição da quantidade de variáveis
+
+```{r }
+library('randomForest')
+qtde_mtry <- 1:(ncol(bd_heart_disease_ajusted_50perc)-1)
+
+oobsMTRY <- sapply(qtde_mtry, function(qtde)  {
+  print(qtde)
+  RF <- randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_50perc, ntree = ntree_hiper, mtry = qtde )
+  return(RF$err.rate[RF$ntree,])
+  
+})
+
+test <- as.data.frame(t(oobsMTRY))
+
+xdata <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,16,16,17)
+
+plot(xdata, test$OOB, type="o", col="black", pch='l', lty=1, ylim=c(0,0.3) )+
+ lines(xdata, test$No, col="red",lty=2)+
+  lines(xdata, test$Yes, col="blue",lty=2)
+
+ 
+
+```
+
+
+## Definição dos hiperparâmetros: Definição do tamanho mínimo de nós
+
+```{r }
+library('randomForest')
+
+mtry_hiper = 9
+
+qtde_MINLEAF <- c(1,5,10,15,20,25,30,35,40,45,50,100,150,200)
+
+oobsMINLEAF <- sapply(qtde_MINLEAF, function(qtde)  {
+  print(qtde)
+  RF <- randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_50perc, ntree = ntree_hiper, mtry = mtry_hiper, nodesize = qtde  )
+  return(RF$err.rate[RF$ntree,])
+  
+})
+
+
+test_NodeSize <- as.data.frame(t(oobsMINLEAF))
+
+minleaf <- c(1,5,10,15,20,25,30,35,40,45,50,100,150,200)
+
+plot(minleaf, test_NodeSize$OOB, type="o", col="black", pch='l', lty=1, ylim=c(0,0.4) )+
+ lines(minleaf, test_NodeSize$No, col="red",lty=2)+
+  lines(minleaf, test_NodeSize$Yes, col="blue",lty=2)
+ 
+```
+
+## Verificação de qual modelo é melhor: 50%, 90% de balanceamento ou base original
+
+### Modelo para base de 50%
+
+```{r }
+nodesize_hiper = 1
+
+final_RF = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_50perc, ntree = ntree_hiper, mtry = mtry_hiper, nodesize = nodesize_hiper, importance = TRUE , replace = FALSE)
+
+final_RF
+
+previsao_rf = as.data.frame(predict(final_RF, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_rf)[1] <- 'pred'
+previsao_rf$obs <- bd_heart_disease_test$HeartDisease
+
+
+avalicao_AUC_RF <- caret::twoClassSummary(previsao_rf, lev=levels(previsao_rf$pred))
+
+avalicao_AUC_RF
+
+```
+
+### Modelo para base de 90%
+
+```{r }
+library('randomForest')
+nodesize_hiper = 1
+set.seed(2222)
+final_RF_90perc = randomForest(HeartDisease ~ . , data = bd_heart_disease_ajusted_90perc, ntree = ntree_hiper, mtry = mtry_hiper, nodesize = nodesize_hiper, importance = TRUE  , replace = FALSE)
+
+final_RF_90perc
+
+previsao_rf_90perc = as.data.frame(predict(final_RF_90perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_rf_90perc)[1] <- 'pred'
+previsao_rf_90perc$obs <- bd_heart_disease_test$HeartDisease
+
+
+avalicao_AUC_RF_90perc <- caret::twoClassSummary(previsao_rf_90perc, lev=levels(previsao_rf_90perc$pred))
+table(previsao_rf_90perc)
+avalicao_AUC_RF_90perc
+
+```
+### Importância de variáveis para o modelo de 90%, escolhido como modelo final
+
+```{r}
+ varImpPlot(final_RF_90perc, type = 1, scale = FALSE,
+            n.var = ncol(bd_heart_disease) - 1, cex = 0.8,
+            main = "Variable importance")
+```
+
+### Modelo para base original
+
+```{r }
+library('randomForest')
+nodesize_hiper = 1
+
+final_RF_original = randomForest(HeartDisease ~ . , data = bd_heart_disease_train, ntree = ntree_hiper, mtry = mtry_hiper, nodesize = nodesize_hiper, importance = TRUE , replace = FALSE)
+
+final_RF_original
+
+previsao_rf_original = as.data.frame(predict(final_RF_original, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_rf_original)[1] <- 'pred'
+previsao_rf_original$obs <- bd_heart_disease_test$HeartDisease
+
+
+avalicao_AUC_RF_original <- caret::twoClassSummary(previsao_rf_original, lev=levels(previsao_rf_original$pred))
+
+avalicao_AUC_RF_original
+
+```
+
+# 2.3 Gradient Boosting: definição de hiperparâmetros e criação de modelo final
+
+## Grid Search com os hiperparâmetros definidos por Max Kuhn (2019)
+
+```{r}
+library("caret")
+
+set.seed(2222)
+
+fitControl <- trainControl(method = "cv",
+                           number = 5,
+                           ## Estimate class probabilities
+                           classProbs = TRUE,
+                           ## Evaluate performance using 
+                           ## the following function
+                           summaryFunction = twoClassSummary)
+
+gbmGrid <-  expand.grid(interaction.depth = c(1,5,9), 
+                        n.trees = c(1000,1500,2000), 
+                        shrinkage = c(0.01,0.1),
+                        n.minobsinnode = c(1,5))
+
+#bd_avaliacao2 <- bd_avaliacao[1:(nrow(bd_avaliacao)*0.1),]
+
+gbmFit3 <- train(HeartDisease ~ ., data = bd_heart_disease_ajusted_50perc, 
+                 method = "gbm", 
+                 trControl = fitControl, 
+                 verbose = FALSE, 
+                 tuneGrid = gbmGrid,
+                 ## Specify which metric to optimize
+                 metric = "ROC")
+
+
+gbmFit3
+
+
+```
+## Avaliação do Modelo gerado através da base com 50% de balanceamento
+
+```{r}
+
+previsao_gbm_50perc = as.data.frame(predict(gbmFit3, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_gbm_50perc)[1] <- 'pred'
+previsao_gbm_50perc$obs <- bd_heart_disease_test$HeartDisease
+
+
+avalicao_AUC_GB_50perc <- caret::twoClassSummary(previsao_gbm_50perc, lev=levels(previsao_gbm_50perc$pred))
+
+avalicao_AUC_GB_50perc
+```
+### Avaliação das principais variáveis do modelo 
+
+```{r}
+library('caret')
+library('gbm')
+varImp_GBM <- importance(gbmFit3$finalModel)
+plot(varImp(gbmFit3, scale = FALSE))
+```
+## Avaliação do Modelo gerado através da base com 90% de balanceamento
+
+```{r}
+library("caret")
+
+set.seed(2222)
+
+fitControl <- trainControl(method = "cv",
+                           number = 5,
+                           ## Estimate class probabilities
+                           classProbs = TRUE,
+                           ## Evaluate performance using 
+                           ## the following function
+                           summaryFunction = twoClassSummary)
+
+grid_final <- expand.grid(interaction.depth = 9, 
+                        n.trees = 2000, 
+                        shrinkage = 0.1,
+                        n.minobsinnode = 1)
+
+
+#bd_avaliacao2 <- bd_avaliacao[1:(nrow(bd_avaliacao)*0.1),]
+
+gbm_90perc <- train(HeartDisease ~ ., data = bd_heart_disease_ajusted_90perc, 
+                 method = "gbm", 
+                 trControl = fitControl, 
+                 verbose = FALSE, 
+                 tuneGrid = grid_final,
+                 ## Specify which metric to optimize
+                 metric = "ROC")
+
+
+gbm_90perc
+
+
+previsao_gbm_90perc = as.data.frame(predict(gbm_90perc, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_gbm_90perc)[1] <- 'pred'
+previsao_gbm_90perc$obs <- bd_heart_disease_test$HeartDisease
+
+
+avalicao_AUC_GB_90perc <- caret::twoClassSummary(previsao_gbm_90perc, lev=levels(previsao_gbm_90perc$pred))
+
+avalicao_AUC_GB_90perc
+```
+
+
+## Avaliação do Modelo gerado através da base original
+
+```{r}
+library("caret")
+
+set.seed(2222)
+
+fitControl <- trainControl(method = "cv",
+                           number = 5,
+                           ## Estimate class probabilities
+                           classProbs = TRUE,
+                           ## Evaluate performance using 
+                           ## the following function
+                           summaryFunction = twoClassSummary)
+
+grid_final <- expand.grid(interaction.depth = 9, 
+                        n.trees = 2000, 
+                        shrinkage = 0.1,
+                        n.minobsinnode = 1)
+
+
+#bd_avaliacao2 <- bd_avaliacao[1:(nrow(bd_avaliacao)*0.1),]
+
+gbm_original <- train(HeartDisease ~ ., data = bd_heart_disease_train, 
+                 method = "gbm", 
+                 trControl = fitControl, 
+                 verbose = FALSE, 
+                 tuneGrid = grid_final,
+                 ## Specify which metric to optimize
+                 metric = "ROC")
+
+
+gbm_original
+
+
+previsao_gbm_original = as.data.frame(predict(gbm_original, newdata = bd_heart_disease_test),stringsAsFactors = TRUE)
+names(previsao_gbm_original)[1] <- 'pred'
+previsao_gbm_original$obs <- bd_heart_disease_test$HeartDisease
+
+
+avalicao_AUC_GB_original <- caret::twoClassSummary(previsao_gbm_original, lev=levels(previsao_gbm_original$pred))
+
+avalicao_AUC_GB_original
+```
+
+
+# 2.4 Redes Neurais: definição de hiperparâmetros e modelo final
+
+
+
+## Tratamento para tornar todas as colunas numéricas e normalizadas
+
+```{r}
+library(dplyr)
+library('stringr')
+
+
+bd_50perc_rede_neural <- bd_heart_disease_ajusted_50perc %>% select(., -Race)  
+bd_50perc_rede_neural$AgeCategory <- substring(bd_50perc_rede_neural$AgeCategory,1,2)
+bd_50perc_rede_neural<-  bd_50perc_rede_neural %>% mutate(HeartDisease = case_when(HeartDisease=='Yes' ~ 1,
+                                                             HeartDisease=='No' ~ 0) ) %>%
+                                                  mutate(Smoking = case_when(Smoking=='Yes' ~ 1,
+                                                             Smoking=='No' ~ 0) ) %>%
+                                                  mutate(AlcoholDrinking  = case_when(AlcoholDrinking =='Yes' ~ 1,
+                                                             AlcoholDrinking =='No' ~ 0) ) %>%
+                                                  mutate(Stroke = case_when(Stroke=='Yes' ~ 1,
+                                                             Stroke=='No' ~ 0) ) %>%
+                                                  mutate(DiffWalking = case_when(DiffWalking=='Yes' ~ 1,
+                                                             DiffWalking=='No' ~ 0) ) %>%
+                                                  mutate(Sex = case_when(Sex=='Male' ~ 1,
+                                                             Sex=='Female' ~ 0) ) %>%
+                                                  mutate(PhysicalActivity = case_when(PhysicalActivity=='Yes' ~ 1,
+                                                             PhysicalActivity=='No' ~ 0) ) %>%
+                                                  mutate(Asthma = case_when(Asthma=='Yes' ~ 1,
+                                                             Asthma=='No' ~ 0) ) %>%
+                                                  mutate(SkinCancer = case_when(SkinCancer=='Yes' ~ 1,
+                                                             SkinCancer=='No' ~ 0) ) %>%
+                                                  mutate(KidneyDisease = case_when(KidneyDisease=='Yes' ~ 1,
+                                                             KidneyDisease=='No' ~ 0) ) %>%
+                                                  mutate(GenHealth = case_when(GenHealth=='Poor' ~ 1,
+                                                             GenHealth=='Fair' ~ 2, 
+                                                             GenHealth=='Good' ~ 3, 
+                                                             GenHealth=='Very good' ~ 4,
+                                                             GenHealth=='Excellent' ~ 5 ))  %>%
+                                                 mutate(AgeCategory = as.numeric(AgeCategory))%>% 
+                                                 mutate(Diabetic = case_when(Diabetic=='No' ~ 1,
+                                                             Diabetic=='Yes (during pregnancy)' ~ 2, 
+                                                             Diabetic=='No, borderline diabetes' ~ 3, 
+                                                             Diabetic=='Yes' ~ 4 ))
+                                                     
+bd_50perc_rede_neural[,2:17] <- scale(bd_50perc_rede_neural[,2:17])
+
+summary(bd_50perc_rede_neural)  
+```
+
+Aplicando tratamento para base de teste
+
+```{r}
+library(dplyr)
+library('stringr')
+
+bd_heart_disease_test_rede_neural <- bd_heart_disease_test %>% select(., -Race)  
+bd_heart_disease_test_rede_neural$AgeCategory <- substring(bd_heart_disease_test_rede_neural$AgeCategory,1,2)
+bd_heart_disease_test_rede_neural<-  bd_heart_disease_test_rede_neural %>% mutate(HeartDisease = case_when(HeartDisease=='Yes' ~ 1,
+                                                             HeartDisease=='No' ~ 0) ) %>%
+                                                  mutate(Smoking = case_when(Smoking=='Yes' ~ 1,
+                                                             Smoking=='No' ~ 0) ) %>%
+                                                  mutate(AlcoholDrinking  = case_when(AlcoholDrinking =='Yes' ~ 1,
+                                                             AlcoholDrinking =='No' ~ 0) ) %>%
+                                                  mutate(Stroke = case_when(Stroke=='Yes' ~ 1,
+                                                             Stroke=='No' ~ 0) ) %>%
+                                                  mutate(DiffWalking = case_when(DiffWalking=='Yes' ~ 1,
+                                                             DiffWalking=='No' ~ 0) ) %>%
+                                                  mutate(Sex = case_when(Sex=='Male' ~ 1,
+                                                             Sex=='Female' ~ 0) ) %>%
+                                                  mutate(PhysicalActivity = case_when(PhysicalActivity=='Yes' ~ 1,
+                                                             PhysicalActivity=='No' ~ 0) ) %>%
+                                                  mutate(Asthma = case_when(Asthma=='Yes' ~ 1,
+                                                             Asthma=='No' ~ 0) ) %>%
+                                                  mutate(SkinCancer = case_when(SkinCancer=='Yes' ~ 1,
+                                                             SkinCancer=='No' ~ 0) ) %>%
+                                                  mutate(KidneyDisease = case_when(KidneyDisease=='Yes' ~ 1,
+                                                             KidneyDisease=='No' ~ 0) ) %>%
+                                                  mutate(GenHealth = case_when(GenHealth=='Poor' ~ 1,
+                                                             GenHealth=='Fair' ~ 2, 
+                                                             GenHealth=='Good' ~ 3, 
+                                                             GenHealth=='Very good' ~ 4,
+                                                             GenHealth=='Excellent' ~ 5 ))  %>%
+                                                 mutate(AgeCategory = as.numeric(AgeCategory))%>% 
+                                                 mutate(Diabetic = case_when(Diabetic=='No' ~ 1,
+                                                             Diabetic=='Yes (during pregnancy)' ~ 2, 
+                                                             Diabetic=='No, borderline diabetes' ~ 3, 
+                                                             Diabetic=='Yes' ~ 4 ))
+                                                     
+bd_heart_disease_test_rede_neural[,2:17] <- scale(bd_heart_disease_test_rede_neural[,2:17])
+
+summary(bd_heart_disease_test_rede_neural)
+
+```
+
+
+
+## Definição dos hiperparâmetros
+
+### Criação do primeiro modelo
+```{r}
+library('keras')
+
+# 1º passo: definir a função de perda.
+# Para problemas de classificação binários: binary_crossentropy
+set.seed(2222)
+model <- keras_model_sequential()
+
+model %>% layer_dense(units = 15,
+                         activation = 'sigmoid',
+                         input_shape = c(16) ,
+                         kernel_initializer = 'he_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                      kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(learning_rate=0.001), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+summary(model)
+
+```
+
+```{r}
+X_train <- as.matrix(bd_50perc_rede_neural[,2:17])
+Y_train <- as.matrix(bd_50perc_rede_neural[,1])
+X_test <- as.matrix(bd_heart_disease_test_rede_neural[,2:17])
+Y_test <- as.matrix(bd_heart_disease_test_rede_neural[,1])
+
+set.seed(2222)
+history<-model %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size =127918,
+              validation_data = list(X_test,Y_teste),
+              callbacks = list(callback_early_stopping(patience=100)))
+
+
+
+history
+```
+
+### Avaliação do Batch Size
+```{r}
+
+model_hyper_batch_full <- keras_model_sequential()
+
+model_hyper_batch_full <- model_hyper_batch_full %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16) ,
+                         kernel_initializer = 'he_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                      kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+model_hyper_batch_quarter <- keras_model_sequential()
+
+model_hyper_batch_quarter <- model_hyper_batch_quarter %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16) ,
+                         kernel_initializer = 'he_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                      kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+model_hyper_batch_half <- keras_model_sequential()
+
+model_hyper_batch_half <- model_hyper_batch_half %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16) ,
+                         kernel_initializer = 'he_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                      kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+```
+
+Batch = 255836
+```{r}
+
+history_full <- model_hyper_batch_full %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size =255836,
+              validation_data = list(X_test,Y_teste))
+
+
+history_full
+```
+
+Batch = 63959
+```{r}
+
+history_quarter <- model_hyper_batch_quarter %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size =63959,
+              validation_data = list(X_test,Y_teste),
+              callbacks = list(callback_early_stopping(patience=100)))
+
+history_quarter
+
+```
+Batch = 127988
+```{r}
+
+history_half <- model_hyper_batch_half %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size =127988,
+              validation_data = list(X_test,Y_teste),
+              callbacks = list(callback_early_stopping(patience=100)))
+
+history_half
+
+```
+
+### Avaliação da quantidade de nós (units)
+
+```{r}
+model_hyper_nodes_8 <- keras_model_sequential()
+
+model_hyper_nodes_8 <- model_hyper_nodes_8 %>% layer_dense(units = 8,
+                         activation = 'sigmoid',
+                         input_shape = c(16) ,
+                         kernel_initializer = 'he_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                      kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+model_hyper_nodes_32 <- keras_model_sequential()
+
+model_hyper_nodes_32 <- model_hyper_nodes_32 %>% layer_dense(units = 32,
+                         activation = 'sigmoid',
+                         input_shape = c(16) ,
+                         kernel_initializer = 'he_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                      kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+model_hyper_nodes_16 <- keras_model_sequential()
+
+model_hyper_nodes_16 <- model_hyper_nodes_16 %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16) ,
+                         kernel_initializer = 'he_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                      kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+```
+
+
+Node = 8
+```{r}
+
+history_node_8 <- model_hyper_nodes_8 %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste))
+
+
+history_node_8
+```
+
+Node = 32
+```{r}
+
+history_node_32 <- model_hyper_nodes_32 %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste))
+
+
+history_node_32
+```
+
+Node = 16
+```{r}
+
+history_node_16 <- model_hyper_nodes_16 %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste))
+
+
+history_node_16
+```
+
+
+### Avaliação da função de inicialização dos pesos (kernel_initializer)
+
+```{r}
+
+model_hyper_weights = keras_model_sequential()
+
+model_hyper_weights <- model_hyper_weights %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16) ,
+                         kernel_initializer = 'random_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                      kernel_initializer = 'random_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+
+
+history_weights <- model_hyper_weights %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste))
+
+
+history_weights
+
+
+```
+
+
+```{r}
+
+model_hyper_weights_he = keras_model_sequential()
+
+model_hyper_weights_he <- model_hyper_weights_he %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16),
+                         kernel_initializer = 'he_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                      kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+
+
+history_weights_he <- model_hyper_weights_he %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste))
+
+
+history_weights_he
+
+
+```
+
+
+### Avaliação da função de ativação da camada escondida (relu)
+
+```{r}
+
+model_hyper_activation = keras_model_sequential()
+
+model_hyper_activation <- model_hyper_activation %>% layer_dense(units = 16,
+                         activation = 'relu',
+                         input_shape = c(16),
+                         kernel_initializer = 'he_normal' ) %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                         kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+
+
+history_activation_relu <- model_hyper_activation %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste))
+
+
+history_activation_relu
+
+
+```
+
+
+```{r}
+
+model_hyper_activation_sigmoide = keras_model_sequential()
+
+model_hyper_activation_sigmoide <- model_hyper_activation_sigmoide %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16),
+                         kernel_initializer = 'he_normal' ) %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                         kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+
+
+history_activation_sigmoide <- model_hyper_activation_sigmoide %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste))
+
+
+history_activation_sigmoide
+
+
+```
+### Avaliação da inclusão de uma nova camada escondida (new layer_dense)
+
+```{r}
+
+model_hyper_multi_layer = keras_model_sequential()
+
+model_hyper_multi_layer <- model_hyper_multi_layer %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16),
+                         kernel_initializer = 'he_normal' ) %>%
+          layer_dense(units = 8,
+                         activation = 'sigmoid',
+                         kernel_initializer = 'he_normal') %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                         kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+
+
+history_multi_layer <- model_hyper_multi_layer %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste))
+
+
+history_multi_layer
+
+
+```
+
+### Avaliação da taxa de aprendizado (learning_rate)
+
+```{r}
+model_lr_05 = keras_model_sequential()
+
+model_lr_05 <- model_lr_05 %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16),
+                         kernel_initializer = 'he_normal' ) %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                         kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(learning_rate=0.0005), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+history_lr_05 <- model_lr_05 %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste),
+              callbacks = list(callback_early_stopping(patience = 100) ))
+
+
+history_lr_05
+
+```
+
+
+```{r}
+model_lr_01 = keras_model_sequential()
+
+model_lr_01 <- model_lr_01 %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16),
+                         kernel_initializer = 'he_normal' ) %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                         kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(learning_rate=0.001), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+history_lr_01 <- model_lr_01 %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste),
+              callbacks = list(callback_early_stopping(patience = 100) ))
+
+
+history_lr_01
+
+```
+
+## Modelo Final gerado pela base de 50% de balanceamento
+
+
+```{r}
+model_final_FNN = keras_model_sequential()
+
+model_final_FNN <- model_final_FNN %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16),
+                         kernel_initializer = 'he_normal' ) %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                         kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(learning_rate=0.0005), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+history_model_final_FNN <- model_final_FNN %>% fit(X_train, 
+              Y_train,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste),
+              callbacks = list(callback_early_stopping(patience = 100) ))
+
+
+history_model_final_FNN
+
+predict_50perc <- as.matrix(predict(model_final_FNN, X_test)) 
+predict_50perc <- as.data.frame(predict_50perc) %>% mutate(V1 = case_when(V1>=0.5 ~ 1, V1<0.5 ~ 0) )
+
+table(Predicted = as.matrix(predict_50perc), Actual = Y_teste)
+
+```
+
+## Modelo Final gerado pela base de 90% de balanceamento
+
+### Tratando a base de 90%
+
+```{r}
+library(dplyr)
+library('stringr')
+
+
+bd_90perc_rede_neural <- bd_heart_disease_ajusted_90perc %>% select(., -Race)  
+bd_90perc_rede_neural$AgeCategory <- substring(bd_90perc_rede_neural$AgeCategory,1,2)
+bd_90perc_rede_neural<-  bd_90perc_rede_neural %>% mutate(HeartDisease = case_when(HeartDisease=='Yes' ~ 1,
+                                                             HeartDisease=='No' ~ 0) ) %>%
+                                                  mutate(Smoking = case_when(Smoking=='Yes' ~ 1,
+                                                             Smoking=='No' ~ 0) ) %>%
+                                                  mutate(AlcoholDrinking  = case_when(AlcoholDrinking =='Yes' ~ 1,
+                                                             AlcoholDrinking =='No' ~ 0) ) %>%
+                                                  mutate(Stroke = case_when(Stroke=='Yes' ~ 1,
+                                                             Stroke=='No' ~ 0) ) %>%
+                                                  mutate(DiffWalking = case_when(DiffWalking=='Yes' ~ 1,
+                                                             DiffWalking=='No' ~ 0) ) %>%
+                                                  mutate(Sex = case_when(Sex=='Male' ~ 1,
+                                                             Sex=='Female' ~ 0) ) %>%
+                                                  mutate(PhysicalActivity = case_when(PhysicalActivity=='Yes' ~ 1,
+                                                             PhysicalActivity=='No' ~ 0) ) %>%
+                                                  mutate(Asthma = case_when(Asthma=='Yes' ~ 1,
+                                                             Asthma=='No' ~ 0) ) %>%
+                                                  mutate(SkinCancer = case_when(SkinCancer=='Yes' ~ 1,
+                                                             SkinCancer=='No' ~ 0) ) %>%
+                                                  mutate(KidneyDisease = case_when(KidneyDisease=='Yes' ~ 1,
+                                                             KidneyDisease=='No' ~ 0) ) %>%
+                                                  mutate(GenHealth = case_when(GenHealth=='Poor' ~ 1,
+                                                             GenHealth=='Fair' ~ 2, 
+                                                             GenHealth=='Good' ~ 3, 
+                                                             GenHealth=='Very good' ~ 4,
+                                                             GenHealth=='Excellent' ~ 5 ))  %>%
+                                                 mutate(AgeCategory = as.numeric(AgeCategory))%>% 
+                                                 mutate(Diabetic = case_when(Diabetic=='No' ~ 1,
+                                                             Diabetic=='Yes (during pregnancy)' ~ 2, 
+                                                             Diabetic=='No, borderline diabetes' ~ 3, 
+                                                             Diabetic=='Yes' ~ 4 ))
+                                                     
+bd_90perc_rede_neural[,2:17] <- scale(bd_90perc_rede_neural[,2:17])
+
+summary(bd_90perc_rede_neural)  
+```
+
+### Gerando modelo final
+
+```{r}
+X_train_90_perc <- as.matrix(bd_90perc_rede_neural[,2:17])
+Y_train_90_perc <- as.matrix(bd_90perc_rede_neural[,1])
+
+
+model_final_FNN_90perc = keras_model_sequential()
+
+model_final_FNN_90perc <- model_final_FNN_90perc %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16),
+                         kernel_initializer = 'he_normal' ) %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                         kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(learning_rate=0.0005), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+history_model_final_FNN_90perc <- model_final_FNN_90perc %>% fit(X_train_90_perc, 
+              Y_train_90_perc,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste),
+              callbacks = list(callback_early_stopping(patience = 100) ))
+
+
+history_model_final_FNN_90perc
+
+predict_90perc <- as.matrix(predict(model_final_FNN_90perc, X_test)) 
+predict_90perc <- as.data.frame(predict_90perc) %>% mutate(V1 = case_when(V1>=0.5 ~ 1, V1<0.5 ~ 0) )
+
+table(Predicted = as.matrix(predict_90perc), Actual = Y_teste)
+
+```
+
+## Modelo Final gerado pela base original
+
+### Tratando a base original
+
+
+```{r}
+library(dplyr)
+library('stringr')
+
+
+bd_heart_disease_train_rede_neural <- bd_heart_disease_train %>% select(., -Race)  
+bd_heart_disease_train_rede_neural$AgeCategory <- substring(bd_heart_disease_train_rede_neural$AgeCategory,1,2)
+bd_heart_disease_train_rede_neural<-  bd_heart_disease_train_rede_neural %>% mutate(HeartDisease = case_when(HeartDisease=='Yes' ~ 1,
+                                                             HeartDisease=='No' ~ 0) ) %>%
+                                                  mutate(Smoking = case_when(Smoking=='Yes' ~ 1,
+                                                             Smoking=='No' ~ 0) ) %>%
+                                                  mutate(AlcoholDrinking  = case_when(AlcoholDrinking =='Yes' ~ 1,
+                                                             AlcoholDrinking =='No' ~ 0) ) %>%
+                                                  mutate(Stroke = case_when(Stroke=='Yes' ~ 1,
+                                                             Stroke=='No' ~ 0) ) %>%
+                                                  mutate(DiffWalking = case_when(DiffWalking=='Yes' ~ 1,
+                                                             DiffWalking=='No' ~ 0) ) %>%
+                                                  mutate(Sex = case_when(Sex=='Male' ~ 1,
+                                                             Sex=='Female' ~ 0) ) %>%
+                                                  mutate(PhysicalActivity = case_when(PhysicalActivity=='Yes' ~ 1,
+                                                             PhysicalActivity=='No' ~ 0) ) %>%
+                                                  mutate(Asthma = case_when(Asthma=='Yes' ~ 1,
+                                                             Asthma=='No' ~ 0) ) %>%
+                                                  mutate(SkinCancer = case_when(SkinCancer=='Yes' ~ 1,
+                                                             SkinCancer=='No' ~ 0) ) %>%
+                                                  mutate(KidneyDisease = case_when(KidneyDisease=='Yes' ~ 1,
+                                                             KidneyDisease=='No' ~ 0) ) %>%
+                                                  mutate(GenHealth = case_when(GenHealth=='Poor' ~ 1,
+                                                             GenHealth=='Fair' ~ 2, 
+                                                             GenHealth=='Good' ~ 3, 
+                                                             GenHealth=='Very good' ~ 4,
+                                                             GenHealth=='Excellent' ~ 5 ))  %>%
+                                                 mutate(AgeCategory = as.numeric(AgeCategory))%>% 
+                                                 mutate(Diabetic = case_when(Diabetic=='No' ~ 1,
+                                                             Diabetic=='Yes (during pregnancy)' ~ 2, 
+                                                             Diabetic=='No, borderline diabetes' ~ 3, 
+                                                             Diabetic=='Yes' ~ 4 ))
+                                                     
+bd_heart_disease_train_rede_neural[,2:17] <- scale(bd_heart_disease_train_rede_neural[,2:17])
+
+summary(bd_heart_disease_train_rede_neural)  
+```
+
+Modelo final FNN para base original
+```{r}
+X_train_original <- as.matrix(bd_heart_disease_train_rede_neural[,2:17])
+Y_train_original <- as.matrix(bd_heart_disease_train_rede_neural[,1])
+
+
+model_final_FNN_original = keras_model_sequential()
+
+model_final_FNN_original <- model_final_FNN_original %>% layer_dense(units = 16,
+                         activation = 'sigmoid',
+                         input_shape = c(16),
+                         kernel_initializer = 'he_normal' ) %>%
+          layer_dense(units = 1, 
+                      activation = 'sigmoid',
+                         kernel_initializer = 'he_normal') %>%
+          compile(optimizer = optimizer_adam(learning_rate=0.0005), 
+                  loss = 'binary_crossentropy',
+                  metrics = 'accuracy')
+
+history_model_final_FNN_original <- model_final_FNN_original %>% fit(X_train_original, 
+              Y_train_original,
+              epochs = 200, 
+              batch_size = 127988,
+              validation_data = list(X_test,Y_teste),
+              callbacks = list(callback_early_stopping(patience = 100) ))
+
+
+history_model_final_FNN_original
+
+predict_original <- as.matrix(predict(model_final_FNN_original, X_test)) 
+predict_original <- as.data.frame(predict_original) %>% mutate(V1 = case_when(V1>=0.5 ~ 1, V1<0.5 ~ 0) )
+
+table(Predicted = as.matrix(predict_original), Actual = Y_teste)
+
+```
+
+

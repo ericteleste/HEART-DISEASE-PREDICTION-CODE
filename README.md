@@ -1,3 +1,3 @@
 # CÓDIGO-TCC-MBA-USPESALQ
-Nome do Aluno: Eric Teleste de Assis
+Nome do Aluno: Eric Teleste de Assis \
 Nome do Trabalho: COMPARAÇÃO DE MÉTODOS DE MACHINE LEARNING PARA PREVISÃO DE INCIDÊNCIA DE DOENÇAS CARDÍACAS
